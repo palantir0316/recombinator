@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifier Combination Tool</title>
+    <style>
+        .modifier-input {
+            margin-bottom: 10px;
+        }
+        .modifier-list {
+            margin-bottom: 20px;
+        }
+        .modifier-item {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>재조합기 계산기</h1>
+
+    <div>
+        <h2>Item 1 Modifiers</h2>
+        <div>
+            <h3>접두어</h3>
+            <div id="item1-prefixes" class="modifier-list"></div>
+            <button onclick="addModifier('item1-prefixes', 'prefix')">추가</button>
+        </div>
+        <div>
+            <h3>접미어</h3>
+            <div id="item1-suffixes" class="modifier-list"></div>
+            <button onclick="addModifier('item1-suffixes', 'suffix')">추가</button>
+        </div>
+    </div>
+
+    <div>
+        <h2>Item 2 Modifiers</h2>
+        <div>
+            <h3>접두어</h3>
+            <div id="item2-prefixes" class="modifier-list"></div>
+            <button onclick="addModifier('item2-prefixes', 'prefix')">추가</button>
+        </div>
+        <div>
+            <h3>접미어</h3>
+            <div id="item2-suffixes" class="modifier-list"></div>
+            <button onclick="addModifier('item2-suffixes', 'suffix')">추가</button>
+        </div>
+    </div>
+	<br/>
+
+    <button onclick="runCombination()">재조합!</button>
+
+    <h2>결과</h2>
+    <pre id="result"></pre>
+
+    <script>
+        class Distribution {
+            constructor(size, probability) {
+                this.size = size;
+                this.probability = probability;
+            }
+        }
+
+        class Item {
+            constructor(modifiers) {
+                this.modifiers = modifiers;
+            }
+        }
+
+        class CalResult {
+            constructor(entities) {
+                this.entities = entities;
+                this.hasExclusive = entities.some(entity => entity.hasExclusive);
+            }
+        }
+
+        class Entity {
+            constructor(modifiers, probability) {
+                this.modifiers = new Set(modifiers);
+                this.probability = probability;
+                this.hasExclusive = Array.from(this.modifiers).some(modifier => modifier.isExclusive);
+            }
+
+            toString() {
+                const collator = new Intl.Collator('ko-KR');
+                const sorted = Array.from(this.modifiers).sort((m1, m2) => {
+                    if (m1.isPrefix && !m2.isPrefix) return -1;
+                    if (!m1.isPrefix && m2.isPrefix) return 1;
+                    if (!m1.isExclusive && m2.isExclusive) return -1;
+                    if (m1.isExclusive && !m2.isExclusive) return 1;
+                    return collator.compare(m1.identifier, m2.identifier);
+                });
+                const percent = (this.probability * 100).toFixed(1) + '%';
+                return sorted.join('\n') + '\n' + percent;
+            }
+        }
+
+        class Modifier {
+            constructor(identifier, isPrefix, isExclusive) {
+                const type = isPrefix ? "[p]" : "[s]";
+                const exclusiveness = isExclusive ? " (E)" : "";
+                this.identifier = `${type} ${identifier}${exclusiveness}`;
+                this.isPrefix = isPrefix;
+                this.isExclusive = isExclusive;
+            }
+
+            toString() {
+                return this.identifier;
+            }
+        }
+
+        function Prefix(identifier, isExclusive = false) {
+            return new Modifier(identifier, true, isExclusive);
+        }
+
+        function Suffix(identifier, isExclusive = false) {
+            return new Modifier(identifier, false, isExclusive);
+        }
+
+        function addModifier(containerId, type) {
+            const container = document.getElementById(containerId);
+            if (container.children.length >= 3) {
+                alert("You can only add up to 3 modifiers.");
+                return;
+            }
+
+            const modifierDiv = document.createElement("div");
+            modifierDiv.className = "modifier-item";
+            
+            const identifierInput = document.createElement("input");
+            identifierInput.type = "text";
+            identifierInput.placeholder = `${type} identifier`;
+
+            const exclusiveInput = document.createElement("input");
+            exclusiveInput.type = "checkbox";
+            exclusiveInput.title = "Exclusive";
+
+            const removeButton = document.createElement("button");
+            removeButton.textContent = "제거";
+            removeButton.onclick = () => container.removeChild(modifierDiv);
+
+            modifierDiv.appendChild(identifierInput);
+            modifierDiv.appendChild(document.createTextNode(" 배타옵 "));
+            modifierDiv.appendChild(exclusiveInput);
+            modifierDiv.appendChild(removeButton);
+            container.appendChild(modifierDiv);
+        }
+
+        function runCombination() {
+            const item1Modifiers = getModifiers('item1');
+            const item2Modifiers = getModifiers('item2');
+
+            const item1 = new Item(new Set(item1Modifiers));
+            const item2 = new Item(new Set(item2Modifiers));
+
+            const result = start(item1, item2);
+            printResult(result);
+        }
+
+        function getModifiers(itemPrefix) {
+            const prefixes = document.getElementById(`${itemPrefix}-prefixes`).children;
+            const suffixes = document.getElementById(`${itemPrefix}-suffixes`).children;
+
+            const modifiers = [];
+
+            for (const child of prefixes) {
+                const identifier = child.querySelector('input[type="text"]').value;
+                const isExclusive = child.querySelector('input[type="checkbox"]').checked;
+                if (identifier) modifiers.push(Prefix(identifier, isExclusive));
+            }
+
+            for (const child of suffixes) {
+                const identifier = child.querySelector('input[type="text"]').value;
+                const isExclusive = child.querySelector('input[type="checkbox"]').checked;
+                if (identifier) modifiers.push(Suffix(identifier, isExclusive));
+            }
+
+            return modifiers;
+        }
+
+        function modifiersToString(modifiers) {
+            return Array.from(modifiers)
+                .sort((m1, m2) => m1.identifier.localeCompare(m2.identifier))
+                .map(modifier => `${modifier.isPrefix ? 'p' : 's'}-${modifier.isExclusive ? 'e' : ''}${modifier.identifier}`)
+                .join(',');
+        }
+
+        function start(item1, item2) {
+            validate(item1);
+            validate(item2);
+
+            if (item1.modifiers.size === 1 && item2.modifiers.size === 1) {
+                const item1Modifier = Array.from(item1.modifiers)[0];
+                const item2Modifier = Array.from(item2.modifiers)[0];
+                if (item1Modifier.isPrefix !== item2Modifier.isPrefix) {
+                    if (item1Modifier.isExclusive && item2Modifier.isExclusive) {
+                        return new CalResult([
+                            new Entity([item1Modifier], 1 / 2),
+                            new Entity([item2Modifier], 1 / 2)
+                        ]);
+                    } else {
+                        return new CalResult([
+                            new Entity([item1Modifier], 1 / 3),
+                            new Entity([item2Modifier], 1 / 3),
+                            new Entity([item1Modifier, item2Modifier], 1 / 3)
+                        ]);
+                    }
+                }
+            }
+
+            const prefixes = Array.from(item1.modifiers).filter(m => m.isPrefix).concat(
+                Array.from(item2.modifiers).filter(m => m.isPrefix)
+            );
+            const suffixes = Array.from(item1.modifiers).filter(m => !m.isPrefix).concat(
+                Array.from(item2.modifiers).filter(m => !m.isPrefix)
+            );
+
+            const prefixFirst = multiply(prefixes, suffixes);
+            const suffixFirst = multiply(suffixes, prefixes);
+            return merge(scale(prefixFirst, 0.5), scale(suffixFirst, 0.5));
+        }
+
+        function validate(item) {
+            if (item.modifiers.size > 6) throw new Error("item should have at most 6 modifiers");
+
+            const prefixes = Array.from(item.modifiers).filter(m => m.isPrefix);
+            const suffixes = Array.from(item.modifiers).filter(m => !m.isPrefix);
+
+            if (new Set(prefixes.map(m => m.identifier)).size !== prefixes.length)
+                throw new Error("prefix has duplicated identifiers");
+
+            if (new Set(suffixes.map(m => m.identifier)).size !== suffixes.length)
+                throw new Error("suffix has duplicated identifiers");
+        }
+
+        function multiply(first, second) {
+            const firstResult = calculate(first, false);
+            const entities = firstResult.entities.flatMap(firstEntity => {
+                const secondResult = calculate(second, firstEntity.hasExclusive);
+                return secondResult.entities.map(secondEntity => {
+                    return new Entity(
+                        new Set([...firstEntity.modifiers, ...secondEntity.modifiers]),
+                        firstEntity.probability * secondEntity.probability
+                    );
+                });
+            });
+            return new CalResult(entities);
+        }
+
+        function getDistributions(totalSize) {
+            switch (totalSize) {
+                case 6:
+                    return [new Distribution(3, 0.72), new Distribution(2, 0.28)];
+                case 5:
+                    return [new Distribution(3, 0.57), new Distribution(2, 0.43)];
+                case 4:
+                    return [new Distribution(3, 0.31), new Distribution(2, 0.59), new Distribution(1, 0.11)];
+                case 3:
+                    return [new Distribution(3, 0.10), new Distribution(2, 0.52), new Distribution(1, 0.39)];
+                case 2:
+                    return [new Distribution(2, 0.33), new Distribution(1, 0.67)];
+                case 1:
+                    return [new Distribution(1, 0.59), new Distribution(0, 0.41)];
+                case 0:
+                    return [new Distribution(0, 1)];
+                default:
+                    throw new Error("Invalid count");
+            }
+        }
+
+        function calculate(candidates, isExcludeExclusive) {
+            const totalSize = candidates.length;
+            const uniqueCandidates = new Set(candidates.filter(candidate => !isExcludeExclusive || !candidate.isExclusive));
+            const distributions = getDistributions(totalSize);
+            const resultMap = new Map();
+            distributions.forEach(({ size, probability }) => {
+                const combinations = generate(uniqueCandidates, size);
+                combinations.forEach(modifiers => {
+                    const key = modifiersToString(modifiers);
+                    const value = resultMap.get(key) || new Entity(modifiers, 0);
+                    value.probability = value.probability + (probability / combinations.length);
+                    resultMap.set(key, value);
+                });
+            });
+            return new CalResult(Array.from(resultMap.values()));
+        }
+
+        function scale(result, factor) {
+            return new CalResult(result.entities.map(entity => new Entity(entity.modifiers, entity.probability * factor)));
+        }
+
+        function merge(result1, result2) {
+            const merged = new Map();
+            result1.entities.forEach(entity => {
+                const key = modifiersToString(entity.modifiers);
+                const value = merged.get(key) || new Entity(entity.modifiers, 0);
+                value.probability = value.probability + entity.probability;
+                merged.set(key, value);
+            });
+            result2.entities.forEach(entity => {
+                const key = modifiersToString(entity.modifiers);
+                const value = merged.get(key) || new Entity(entity.modifiers, 0);
+                value.probability = value.probability + entity.probability;
+                merged.set(key, value);
+            });
+            return new CalResult(Array.from(merged.values()));
+        }
+
+        function generate(candidates, remain) {
+            if (remain === 0 || candidates.size === 0) {
+                return [new Set()];
+            }
+            const result = new Map();
+            candidates.forEach(candidate => {
+                const childCandidates = new Set([...candidates].filter(it => it.identifier != candidate.identifier && (!candidate.isExclusive || !it.isExclusive)));
+                const childResults = generate(childCandidates, remain - 1);
+                childResults.forEach(childResult => {
+                    const newCombination = new Set([...childResult, candidate]);
+                    const key = modifiersToString(newCombination);
+                    result.set(key, newCombination);
+                });
+            });
+            return Array.from(result.values());
+        }
+
+        function printResult(result) {
+            const resultContainer = document.getElementById("result");
+            resultContainer.textContent = "=============\nRESULT\n=============\n";
+            result.entities.forEach(entity => {
+                resultContainer.textContent += entity.toString() + "\n\n";
+            });
+            resultContainer.textContent += "=============\nNET RESULT\n=============\n";
+            const netResultMap = new Map();
+            result.entities.forEach(entity => {
+                const filteredModifiers = Array.from(entity.modifiers).filter(modifier => !modifier.isExclusive);
+                const key = modifiersToString(filteredModifiers);
+                const value = netResultMap.get(key) || new Entity(filteredModifiers, 0);
+                value.probability = value.probability + entity.probability;
+                netResultMap.set(key, value);
+            });
+            const netResult = Array.from(netResultMap.values());
+            netResult.forEach(entity => {
+                resultContainer.textContent += entity.toString() + "\n\n";
+            });
+        }
+    </script>
+</body>
+</html>
