@@ -307,12 +307,13 @@
         }
 
         function generate(candidates, remain) {
-            if (remain === 0 || candidates.size === 0) {
+            if (remain === 0 || candidates.length === 0) {
                 return [new Set()];
             }
             const result = [];
             candidates.forEach(candidate => {
                 const childCandidates = [...candidates].filter(it => it.identifier != candidate.identifier && (!candidate.isExclusive || !it.isExclusive));
+
                 const childResults = generate(childCandidates, remain - 1);
                 childResults.forEach(childResult => {
                     const newCombination = new Set([...childResult, candidate]);
