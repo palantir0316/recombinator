@@ -270,11 +270,11 @@
 
         function calculate(candidates, isExcludeExclusive) {
             const totalSize = candidates.length;
-            const uniqueCandidates = new Set(candidates.filter(candidate => !isExcludeExclusive || !candidate.isExclusive));
+            const actualCandidates = candidates.filter(candidate => !isExcludeExclusive || !candidate.isExclusive)
             const distributions = getDistributions(totalSize);
             const resultMap = new Map();
             distributions.forEach(({ size, probability }) => {
-                const combinations = generate(uniqueCandidates, size);
+                const combinations = generate(actualCandidates, size);
                 combinations.forEach(modifiers => {
                     const key = modifiersToString(modifiers);
                     const value = resultMap.get(key) || new Entity(modifiers, 0);
@@ -310,17 +310,16 @@
             if (remain === 0 || candidates.size === 0) {
                 return [new Set()];
             }
-            const result = new Map();
+            const result = [];
             candidates.forEach(candidate => {
-                const childCandidates = new Set([...candidates].filter(it => it.identifier != candidate.identifier && (!candidate.isExclusive || !it.isExclusive)));
+                const childCandidates = [...candidates].filter(it => it.identifier != candidate.identifier && (!candidate.isExclusive || !it.isExclusive));
                 const childResults = generate(childCandidates, remain - 1);
                 childResults.forEach(childResult => {
                     const newCombination = new Set([...childResult, candidate]);
-                    const key = modifiersToString(newCombination);
-                    result.set(key, newCombination);
+                    result.push(newCombination);
                 });
             });
-            return Array.from(result.values());
+            return result;
         }
 
         function printResult(result) {
